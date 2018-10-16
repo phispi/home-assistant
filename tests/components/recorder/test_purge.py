@@ -20,6 +20,10 @@ class TestRecorderPurge(unittest.TestCase):
         self.hass = get_test_home_assistant()
         init_recorder_component(self.hass)
         self.hass.start()
+        with recorder.session_scope(hass=self.hass) as session:
+            session.query(States).delete()
+            session.query(Events).delete()
+            session.flush()
 
     def tearDown(self):  # pylint: disable=invalid-name
         """Stop everything that was started."""
@@ -98,6 +102,7 @@ class TestRecorderPurge(unittest.TestCase):
                     event_type = 'EVENT_TEST'
 
                 session.add(Events(
+                    event_id=1000+event_id,
                     event_type=event_type,
                     event_data=json.dumps(event_data),
                     origin='LOCAL',
@@ -120,6 +125,7 @@ class TestRecorderPurge(unittest.TestCase):
 
     def test_purge_old_states(self):
         """Test deleting old states."""
+        self._add_test_events()
         self._add_test_states()
         # make sure we start with 7 states
         with session_scope(hass=self.hass) as session:
@@ -170,6 +176,7 @@ class TestRecorderPurge(unittest.TestCase):
 
             # Small wait for recorder thread
             self.hass.data[DATA_INSTANCE].block_till_done()
+            session.commit()
 
             # only purged old events
             self.assertEqual(states.count(), 5)
@@ -182,6 +189,7 @@ class TestRecorderPurge(unittest.TestCase):
 
             # Small wait for recorder thread
             self.hass.data[DATA_INSTANCE].block_till_done()
+            session.commit()
 
             # we should only have 3 states left after purging
             self.assertEqual(states.count(), 3)
